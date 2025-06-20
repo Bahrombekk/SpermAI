@@ -173,7 +173,6 @@ This project is released under the MIT License.
 
 * Author: \[Muhammadiyev Bahrombek]
 * Email: [bahrombekmuhammadiyev@gmail.com](mailto:bahrombekmuhammadiyev@gmail.com)
-* Lab: Tashkent AI Biomedical Research
 * Website: [https://sperm-ai.uz](https://sperm-ai.uz)
 
 ---

@@ -1,0 +1,7 @@
+flask==2.3.3
+ultralytics==8.3.8  # Latest stable version as of October 2024
+opencv-python==4.10.0.84  # Latest stable version
+pillow==10.4.0  # Latest stable version
+pyyaml==6.0.2  # Latest stable version
+pytest==8.3.3  # Latest stable version
+numpy<2.0  # Pin NumPy below 2.0 to avoid compatibility issues

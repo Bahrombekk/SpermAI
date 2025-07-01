@@ -27,10 +27,17 @@ def create_app():
     app.logger.info("Flask application initialized")
     return app
 
+
+app = create_app()  # Important: define app at global level for deployment
+
 if __name__ == '__main__':
-    app = create_app()
+    # Read PORT from environment (fallback to config.yaml or 5000)
+    port = int(os.environ.get('PORT', app.config['server'].get('port', 5000)))
+    host = app.config['server'].get('host', '0.0.0.0')
+    debug = app.config['server'].get('debug', False)
+
     app.run(
-        host=app.config['server']['host'],
-        port=app.config['server']['port'],
-        debug=app.config['server']['debug']
+        host=host,
+        port=port,
+        debug=debug
     )

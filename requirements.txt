@@ -1,3 +1,4 @@
+gunicorn
 flask==2.3.3
 ultralytics==8.3.8  # Latest stable version as of October 2024
 opencv-python==4.10.0.84  # Latest stable version

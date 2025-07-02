@@ -1,3 +1,4 @@
+# src/api/errors.py
 from flask import jsonify
 
 def bad_request(message):

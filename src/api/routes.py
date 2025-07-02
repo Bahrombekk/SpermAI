@@ -1,3 +1,4 @@
+# src/api/routes.py
 from flask import Blueprint, request, jsonify, render_template, session
 from src.models.detector import SpermDetector
 from src.models.classifier import SpermClassifier
@@ -5,11 +6,11 @@ from src.utils.image_processing import process_image, save_cropped_image
 from src.api.errors import bad_request
 import os
 from datetime import datetime
+import logging
 
 bp = Blueprint('main', __name__)
 
 def init_routes(app):
-    # Initialize models
     detector = SpermDetector(app.config['models']['detection'])
     classifier = SpermClassifier(app.config['models']['classification'])
     
@@ -21,12 +22,12 @@ def init_routes(app):
     
     @bp.route('/report')
     def report():
-        # Retrieve analysis results from session
         results = session.get('analysis_results', {
             'stats': {'Live': 0, 'Dead': 0, 'Immature': 0},
             'classification': {'Normal': 0, 'Abnormal': 0, 'Other': 0},
             'total_cells': 0
         })
+        app.logger.info(f"Report accessed with results: {results}")
         return render_template('report.html',
                              stats=results['classification'],
                              total_cells=results['total_cells'],
@@ -42,34 +43,52 @@ def init_routes(app):
         if file.filename == '':
             return bad_request('No file selected')
         
-        # Save uploaded image
-        image_path = os.path.join(app.config['paths']['upload_folder'], file.filename)
+        allowed_extensions = {'jpg', 'jpeg', 'png', 'tiff'}
+        if not '.' in file.filename or file.filename.rsplit('.', 1)[1].lower() not in allowed_extensions:
+            return bad_request('Unsupported file format. Please upload JPG, PNG, or TIFF.')
+
+        upload_folder = app.config['paths']['upload_folder']
+        os.makedirs(upload_folder, exist_ok=True)
+        image_path = os.path.join(upload_folder, file.filename)
         file.save(image_path)
         
         try:
-            # Perform detection
+            # Detection
             detections = detector.detect(image_path)
+            app.logger.info(f"Total detections: {len(detections)}")
+            
+            # Initialize counters
             stats = {'Live': 0, 'Dead': 0, 'Immature': 0}
-            cropped_images = []
             classification_results = {'Normal': 0, 'Abnormal': 0, 'Other': 0}
+            cropped_images = []
             
             # Process each detection
-            for det in detections:
+            for i, det in enumerate(detections):
                 class_name = det['class_name']
-                stats[class_name] += 1
+                stats[class_name] = stats.get(class_name, 0) + 1
+                
+                app.logger.info(f"Processing detection {i+1}: {class_name}")
                 
                 # Crop and classify
                 crop = process_image(image_path, det['bbox'])
                 cls_result = classifier.classify(crop)
-                classification_results[cls_result['class_name']] += 1
                 
-                # Save cropped image as base64
+                classified_as = cls_result['class_name']
+                classification_results[classified_as] = classification_results.get(classified_as, 0) + 1
+                
+                app.logger.info(f"Detection {i+1} classified as: {classified_as}")
+                
+                # Save cropped image
                 base64_img = save_cropped_image(crop)
                 cropped_images.append({
-                    'class_name': cls_result['class_name'],
+                    'class_name': classified_as,
                     'image': base64_img,
-                    'label': f"{cls_result['class_name']} #{classification_results[cls_result['class_name']]}"
+                    'label': f"{classified_as} #{classification_results[classified_as]}"
                 })
+            
+            # Debug logging
+            app.logger.info(f"Final stats: {stats}")
+            app.logger.info(f"Final classification: {classification_results}")
             
             response = {
                 'stats': stats,
@@ -78,14 +97,24 @@ def init_routes(app):
                 'total_cells': sum(stats.values())
             }
             
-            # Store results in session for report
-            session['analysis_results'] = response
+            # Store results in session
+            session['analysis_results'] = {
+                'stats': stats,
+                'classification': classification_results,
+                'total_cells': sum(stats.values())
+            }
             
-            app.logger.info(f"Image analysis completed: {file.filename}")
+            app.logger.info(f"Analysis completed for {file.filename}: {response}")
             return jsonify(response)
         
         except Exception as e:
             app.logger.error(f"Error processing image: {str(e)}")
-            return bad_request(str(e))
+            return bad_request(f"Error processing image: {str(e)}")
+        finally:
+            if os.path.exists(image_path):
+                try:
+                    os.remove(image_path)
+                except Exception as e:
+                    app.logger.warning(f"Failed to delete uploaded file {image_path}: {str(e)}")
     
     app.register_blueprint(bp)
